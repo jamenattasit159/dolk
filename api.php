@@ -140,7 +140,7 @@ elseif ($action == 'withdraw' && $_SERVER['REQUEST_METHOD'] == 'POST') {
 
 } elseif ($action == 'get_history') {
     // JOIN เพื่อดึงรายละเอียดการตัดสต็อก (ใช้ GROUP_CONCAT เพื่อรวมหลาย Row เป็น 1 บรรทัด)
-    $sql = "SELECT t.tid, t.trx_date, t.qty_withdraw, t.total_cost,
+    $sql = "SELECT t.tid, t.trx_date, t.qty_withdraw, t.total_cost,t.doctax_no,
                    m.name AS member_name, m.department, 
                    i.itemname, i.type,
                    GROUP_CONCAT(
@@ -237,6 +237,67 @@ elseif ($action == 'delete_item' && $_SERVER['REQUEST_METHOD'] == 'POST') {
     } catch (Exception $e) {
         $pdo->rollBack();
         echo json_encode(["success" => false, "error" => $e->getMessage()]);
+    }
+} elseif ($action == 'get_item_lots') {
+    $itemid = $_GET['itemid'];
+
+    try {
+        // 1. ดึงข้อมูลสินค้าหลัก
+        $stmtItem = $pdo->prepare("SELECT * FROM items WHERE itemid = ?");
+        $stmtItem->execute([$itemid]);
+        $item = $stmtItem->fetch(PDO::FETCH_ASSOC);
+
+        // 2. ดึงประวัติ Lot ทั้งหมด (เรียงจากล่าสุดไปเก่าสุด)
+        $stmtLots = $pdo->prepare("SELECT * FROM stock_lots WHERE itemid = ? ORDER BY date_in DESC");
+        $stmtLots->execute([$itemid]);
+        $lots = $stmtLots->fetchAll(PDO::FETCH_ASSOC);
+
+        echo json_encode(['success' => true, 'item' => $item, 'lots' => $lots]);
+    } catch (PDOException $e) {
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    }
+} elseif ($action == 'get_dashboard_data') {
+    try {
+        // 1. สรุปตัวเลข (เหมือนเดิม)
+        $totalItems = $pdo->query("SELECT COUNT(*) FROM items")->fetchColumn();
+        $lowStock = $pdo->query("SELECT COUNT(*) FROM items WHERE qty < 5")->fetchColumn();
+        $totalValue = $pdo->query("SELECT SUM(qty_remain * lot_price) FROM stock_lots")->fetchColumn();
+        $todayTrx = $pdo->query("SELECT COUNT(*) FROM transactions WHERE DATE(trx_date) = CURDATE()")->fetchColumn();
+
+        // 2. กราฟเบิกจ่าย 7 วัน (เหมือนเดิม)
+        $sqlChart = "SELECT DATE_FORMAT(trx_date, '%d/%m') as date_label, SUM(qty_withdraw) as total_qty 
+                     FROM transactions WHERE trx_date >= DATE(NOW()) - INTERVAL 6 DAY 
+                     GROUP BY DATE(trx_date) ORDER BY trx_date ASC";
+        $chartData = $pdo->query($sqlChart)->fetchAll(PDO::FETCH_ASSOC);
+
+        // [NEW] 3. Top 5 สินค้ายอดฮิต (เบิกเยอะสุด)
+        $sqlTop = "SELECT i.itemname, SUM(t.qty_withdraw) as total_qty 
+                   FROM transactions t JOIN items i ON t.itemid = i.itemid 
+                   GROUP BY t.itemid ORDER BY total_qty DESC LIMIT 5";
+        $topItems = $pdo->query($sqlTop)->fetchAll(PDO::FETCH_ASSOC);
+
+        // [NEW] 4. สัดส่วนประเภทสินค้า (Pie Chart)
+        $sqlPie = "SELECT type, COUNT(*) as count FROM items GROUP BY type";
+        $pieData = $pdo->query($sqlPie)->fetchAll(PDO::FETCH_ASSOC);
+
+        // [NEW] 5. รายการเคลื่อนไหวล่าสุด 5 รายการ (Recent Activity)
+        $sqlRecent = "SELECT t.trx_date, m.name as member_name, m.department, i.itemname, t.qty_withdraw 
+                      FROM transactions t 
+                      JOIN members m ON t.eid = m.eid 
+                      JOIN items i ON t.itemid = i.itemid 
+                      ORDER BY t.trx_date DESC LIMIT 5";
+        $recentData = $pdo->query($sqlRecent)->fetchAll(PDO::FETCH_ASSOC);
+
+        echo json_encode([
+            'success' => true,
+            'summary' => ['items' => $totalItems, 'low' => $lowStock, 'value' => $totalValue ?: 0, 'today' => $todayTrx],
+            'chart' => $chartData,
+            'top_items' => $topItems,
+            'pie_data' => $pieData,
+            'recent' => $recentData
+        ]);
+    } catch (Exception $e) {
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
     }
 }
 ?>
