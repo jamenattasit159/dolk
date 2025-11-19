@@ -1,0 +1,83 @@
+-- 1. ปลดล็อคและลบตารางเก่าทิ้งให้หมด (Reset)
+SET FOREIGN_KEY_CHECKS = 0;
+DROP TABLE IF EXISTS transaction_details;
+DROP TABLE IF EXISTS transactions;
+DROP TABLE IF EXISTS stock_lots;
+DROP TABLE IF EXISTS items;
+DROP TABLE IF EXISTS members;
+SET FOREIGN_KEY_CHECKS = 1;
+
+-- ========================================================
+-- 2. สร้างตารางใหม่ (Structure ล่าสุด)
+-- ========================================================
+
+-- 2.1 ตารางสมาชิก/ผู้เบิก
+CREATE TABLE members (
+    eid VARCHAR(20) PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    position VARCHAR(100),
+    department VARCHAR(100)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 2.2 ตารางวัสดุ (เพิ่มหน่วยนับ unit แล้ว)
+CREATE TABLE items (
+    itemid VARCHAR(20) PRIMARY KEY,
+    itemname VARCHAR(150) NOT NULL,
+    type ENUM('วัสดุสำนักงาน', 'วัสดุคอมพิวเตอร์', 'วัสดุครัวเรือน') NOT NULL,
+    unit VARCHAR(50) DEFAULT 'ชิ้น/อัน' COMMENT 'หน่วยนับ',
+    qty INT DEFAULT 0 COMMENT 'จำนวนคงเหลือรวม (Cache)',
+    updatelast TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 2.3 ตารางล็อตสินค้า (FIFO Master)
+CREATE TABLE stock_lots (
+    lot_id INT AUTO_INCREMENT PRIMARY KEY,
+    itemid VARCHAR(20),
+    lot_price DECIMAL(10, 2) NOT NULL COMMENT 'ต้นทุนต่อหน่วยของล็อตนี้',
+    qty_initial INT NOT NULL COMMENT 'จำนวนที่รับเข้าครั้งแรก',
+    qty_remain INT NOT NULL COMMENT 'จำนวนที่เหลือในล็อตปัจจุบัน',
+    doc_no VARCHAR(50) COMMENT 'เลขที่เอกสารรับเข้า/ใบส่งของ',
+    date_in DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (itemid) REFERENCES items(itemid) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 2.4 ตารางประวัติการเบิก (Transactions Main)
+-- (เพิ่ม doctax_no สำหรับเลขที่ใบเบิก)
+CREATE TABLE transactions (
+    tid INT AUTO_INCREMENT PRIMARY KEY,
+    eid VARCHAR(20),
+    itemid VARCHAR(20),
+    doctax_no VARCHAR(50) DEFAULT '-' COMMENT 'เลขที่ใบเบิก',
+    qty_withdraw INT NOT NULL COMMENT 'จำนวนที่เบิก',
+    total_cost DECIMAL(10, 2) DEFAULT 0.00 COMMENT 'มูลค่ารวมต้นทุนที่ตัดไป',
+    trx_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (eid) REFERENCES members(eid),
+    FOREIGN KEY (itemid) REFERENCES items(itemid)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 2.5 ตารางรายละเอียดการตัดล็อต (FIFO Details)
+-- (เก็บว่าเบิกครั้งนี้ ไปตัด lot ไหนมาบ้าง)
+CREATE TABLE transaction_details (
+    detail_id INT AUTO_INCREMENT PRIMARY KEY,
+    tid INT NOT NULL,
+    lot_id INT NOT NULL,
+    qty_deducted INT NOT NULL COMMENT 'จำนวนที่ตัดไปจาก lot นี้',
+    current_price DECIMAL(10, 2) NOT NULL COMMENT 'ราคาต้นทุนของ lot นี้ ณ ตอนตัด',
+    FOREIGN KEY (tid) REFERENCES transactions(tid) ON DELETE CASCADE,
+    FOREIGN KEY (lot_id) REFERENCES stock_lots(lot_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ========================================================
+-- 3. เพิ่มข้อมูลเริ่มต้น (Seed Data)
+-- ========================================================
+
+INSERT INTO members (eid, name, position, department) VALUES
+('101', 'นายสมชาย รักดิน', 'นักวิชาการที่ดิน', 'ฝ่ายทะเบียน'),
+('102', 'นางสาวใจดี มีสุข', 'เจ้าพนักงานธุรการ', 'ฝ่ายอำนวยการ'),
+('103', 'นายเก่ง ไอที', 'นักวิชาการคอมพิวเตอร์', 'ศูนย์ข้อมูล');
+
+-- เพิ่มสินค้าตัวอย่าง
+INSERT INTO items (itemid, itemname, type, unit, qty) VALUES
+('t001', 'ปากกาลูกลื่นสีน้ำเงิน', 'วัสดุสำนักงาน', 'ด้าม', 0),
+('t016', 'ยางลบดินสอ', 'วัสดุสำนักงาน', 'ก้อน', 0),
+('c001', 'สาย HDMI 10 เมตร', 'วัสดุคอมพิวเตอร์', 'เส้น', 0);
