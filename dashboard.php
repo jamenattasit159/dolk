@@ -177,7 +177,7 @@
                             clip-rule="evenodd" />
                     </svg>
                 </div>
-                <p class="text-gray-500 font-medium text-sm">ใกล้หมด (<5)< /p>
+                <p class="text-gray-500 font-medium text-sm">ใกล้หมด (<5)</p>
                         <div class="flex items-baseline gap-2 mt-2">
                             <h3 class="text-4xl font-bold text-red-600" id="d_low">-</h3>
                             <span class="text-sm text-gray-400">รายการ</span>

@@ -19,15 +19,42 @@ if ($action == 'get_members') {
     $stmt = $pdo->query("SELECT * FROM members ORDER BY name ASC");
     echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
 } elseif ($action == 'get_items') {
-    // แสดงราคาเฉลี่ยหรือราคาล่าสุดเพื่อให้เห็นภาพคร่าวๆ
+    $search = isset($_GET['search']) ? $_GET['search'] : '';
+    $type = isset($_GET['type']) ? $_GET['type'] : '';
+
+    // เริ่มต้น SQL หลัก
     $sql = "SELECT i.itemid, i.itemname, i.type, i.unit,
             COALESCE(SUM(s.qty_remain), 0) as qty, 
             (SELECT lot_price FROM stock_lots WHERE itemid = i.itemid AND qty_remain > 0 ORDER BY date_in ASC LIMIT 1) as current_price
             FROM items i
-            LEFT JOIN stock_lots s ON i.itemid = s.itemid
-            GROUP BY i.itemid, i.itemname, i.type
-            ORDER BY i.itemid ASC";
-    $stmt = $pdo->query($sql);
+            LEFT JOIN stock_lots s ON i.itemid = s.itemid";
+
+    $conditions = [];
+    $params = [];
+
+    // ถ้ามีการค้นหา (ชื่อ หรือ รหัส)
+    if (!empty($search)) {
+        $conditions[] = "(i.itemname LIKE ? OR i.itemid LIKE ?)";
+        $params[] = "%$search%";
+        $params[] = "%$search%";
+    }
+
+    // ถ้ามีการเลือกประเภท
+    if (!empty($type)) {
+        $conditions[] = "i.type = ?";
+        $params[] = $type;
+    }
+
+    // ประกอบร่าง WHERE clause
+    if (!empty($conditions)) {
+        $sql .= " WHERE " . implode(" AND ", $conditions);
+    }
+
+    // ต่อท้ายด้วย Group By และ Order By
+    $sql .= " GROUP BY i.itemid, i.itemname, i.type ORDER BY i.itemid ASC";
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
     echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
 } elseif ($action == 'add_item' && $_SERVER['REQUEST_METHOD'] == 'POST') {
     $data = json_decode(file_get_contents("php://input"), true);

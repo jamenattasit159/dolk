@@ -18,7 +18,6 @@
             min-height: 100vh;
         }
 
-        /* --- Custom Styles --- */
         .glass-card {
             background: #ffffff;
             border: 1px solid #e5ebe4;
@@ -35,8 +34,6 @@
             background: linear-gradient(135deg, #0d7f4e 0%, #0a5f3c 100%);
             color: white;
             font-size: 0.95rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
         }
 
         .table-row-hover:hover td {
@@ -95,6 +92,43 @@
             </button>
         </div>
 
+        <div
+            class="glass-card p-4 mb-6 flex flex-col md:flex-row gap-4 items-center justify-between bg-white/80 backdrop-blur-sm sticky top-20 z-40">
+            <div class="flex items-center gap-2 w-full md:w-auto">
+                <span class="text-sm font-bold text-gray-600">🔍 ค้นหา:</span>
+                <div class="relative w-full md:w-64">
+                    <input type="text" id="searchInput" oninput="fetchItems()"
+                        class="input input-bordered input-sm w-full pr-8" placeholder="ชื่อวัสดุ หรือ รหัส...">
+                    <div class="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none text-gray-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2 w-full md:w-auto">
+                <span class="text-sm font-bold text-gray-600">📂 กรองประเภท:</span>
+                <select id="typeFilter" onchange="fetchItems()" class="select select-bordered select-sm w-full md:w-48">
+                    <option value="">ทั้งหมด (All Types)</option>
+                    <option value="วัสดุสำนักงาน">วัสดุสำนักงาน</option>
+                    <option value="วัสดุคอมพิวเตอร์">วัสดุคอมพิวเตอร์</option>
+                    <option value="วัสดุครัวเรือน">วัสดุครัวเรือน</option>
+                    <option value="อื่นๆ">อื่นๆ</option>
+                </select>
+                <button onclick="resetSearch()" class="btn btn-sm btn-ghost text-gray-500 tooltip"
+                    data-tip="รีค่าค้นหา">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+
         <div class="glass-card overflow-hidden">
             <div class="overflow-x-auto">
                 <table class="table w-full">
@@ -120,30 +154,19 @@
 
     <dialog id="itemModal" class="modal">
         <div class="modal-box bg-white rounded-xl shadow-2xl max-w-lg border-t-4 border-[#0d7f4e]">
-            <form method="dialog">
-                <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+            <form method="dialog"><button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
             </form>
-
-            <h3 class="font-bold text-xl text-[#0d7f4e] mb-4 flex items-center gap-2">
-                <span id="modalTitleIcon">✏️</span>
-                <span id="modalTitle">แก้ไขข้อมูลวัสดุ</span>
-            </h3>
-
+            <h3 class="font-bold text-xl text-[#0d7f4e] mb-4 flex items-center gap-2"><span
+                    id="modalTitleIcon">✏️</span> <span id="modalTitle">แก้ไขข้อมูลวัสดุ</span></h3>
             <form id="formItem" class="space-y-4">
                 <input type="hidden" id="mode" value="add">
-                <div class="form-control">
-                    <label class="label font-bold text-gray-600 text-sm">รหัสวัสดุ <span
-                            class="text-red-500">*</span></label>
-                    <input type="text" id="itemid"
-                        class="input input-bordered bg-gray-50 focus:bg-white focus:border-[#0d7f4e]" required />
-                    <span class="text-xs text-gray-400 mt-1" id="idHint">รหัสห้ามซ้ำ (เช่น P001, C002)</span>
-                </div>
-                <div class="form-control">
-                    <label class="label font-bold text-gray-600 text-sm">ชื่อรายการ <span
-                            class="text-red-500">*</span></label>
-                    <input type="text" id="itemname"
-                        class="input input-bordered bg-gray-50 focus:bg-white focus:border-[#0d7f4e]" required />
-                </div>
+                <div class="form-control"><label class="label font-bold text-gray-600 text-sm">รหัสวัสดุ <span
+                            class="text-red-500">*</span></label><input type="text" id="itemid"
+                        class="input input-bordered bg-gray-50 focus:bg-white focus:border-[#0d7f4e]" required /><span
+                        class="text-xs text-gray-400 mt-1" id="idHint">รหัสห้ามซ้ำ (เช่น P001, C002)</span></div>
+                <div class="form-control"><label class="label font-bold text-gray-600 text-sm">ชื่อรายการ <span
+                            class="text-red-500">*</span></label><input type="text" id="itemname"
+                        class="input input-bordered bg-gray-50 focus:bg-white focus:border-[#0d7f4e]" required /></div>
                 <div class="grid grid-cols-2 gap-4">
                     <div class="form-control">
                         <label class="label font-bold text-gray-600 text-sm">ประเภท</label>
@@ -155,12 +178,10 @@
                             <option>อื่นๆ</option>
                         </select>
                     </div>
-                    <div class="form-control">
-                        <label class="label font-bold text-gray-600 text-sm">หน่วยนับ</label>
-                        <input type="text" id="unit"
+                    <div class="form-control"><label
+                            class="label font-bold text-gray-600 text-sm">หน่วยนับ</label><input type="text" id="unit"
                             class="input input-bordered bg-gray-50 focus:bg-white focus:border-[#0d7f4e]"
-                            placeholder="เช่น ชิ้น, เล่ม" required />
-                    </div>
+                            placeholder="เช่น ชิ้น, เล่ม" required /></div>
                 </div>
                 <div id="addStockSection" class="hidden p-3 bg-green-50 rounded-lg border border-green-200 mt-2">
                     <h4 class="text-sm font-bold text-green-800 mb-2">ตั้งต้นสต็อก (รับเข้าครั้งแรก)</h4>
@@ -175,22 +196,18 @@
                                 placeholder="ถ้ามี"></div>
                     </div>
                 </div>
-                <div class="modal-action mt-6">
-                    <button type="button" onclick="document.getElementById('itemModal').close()"
-                        class="btn btn-ghost">ยกเลิก</button>
-                    <button type="submit"
-                        class="btn btn-primary bg-[#0d7f4e] border-none text-white px-6">บันทึกข้อมูล</button>
-                </div>
+                <div class="modal-action mt-6"><button type="button"
+                        onclick="document.getElementById('itemModal').close()"
+                        class="btn btn-ghost">ยกเลิก</button><button type="submit"
+                        class="btn btn-primary bg-[#0d7f4e] border-none text-white px-6">บันทึกข้อมูล</button></div>
             </form>
         </div>
     </dialog>
 
     <dialog id="viewModal" class="modal">
         <div class="modal-box bg-white rounded-xl shadow-2xl max-w-3xl border-t-4 border-blue-600">
-            <form method="dialog">
-                <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+            <form method="dialog"><button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
             </form>
-
             <div class="flex items-center gap-3 mb-6 border-b pb-4">
                 <div class="bg-blue-100 p-3 rounded-full text-blue-600"><svg xmlns="http://www.w3.org/2000/svg"
                         class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -203,7 +220,6 @@
                         | ประเภท: <span id="view_type">-</span></div>
                 </div>
             </div>
-
             <div class="grid grid-cols-3 gap-4 mb-6">
                 <div class="bg-gray-50 p-3 rounded-lg text-center border">
                     <div class="text-xs text-gray-500">จำนวน Lot ที่รับเข้า</div>
@@ -218,7 +234,6 @@
                     <div class="text-xl font-bold text-blue-700" id="view_unit">-</div>
                 </div>
             </div>
-
             <h4 class="font-bold text-gray-700 mb-2 flex items-center gap-2"><span class="text-sm">📋</span> ประวัติ Lot
                 สินค้า</h4>
             <div class="overflow-x-auto rounded-lg border border-gray-200 max-h-80 overflow-y-auto">
@@ -234,8 +249,7 @@
                             <th class="text-center">สถานะ</th>
                         </tr>
                     </thead>
-                    <tbody id="viewTableBody">
-                    </tbody>
+                    <tbody id="viewTableBody"></tbody>
                 </table>
             </div>
         </div>
@@ -244,15 +258,30 @@
     <script>
         window.onload = fetchItems;
 
+        // ฟังก์ชัน Reset การค้นหา
+        function resetSearch() {
+            document.getElementById('searchInput').value = '';
+            document.getElementById('typeFilter').value = '';
+            fetchItems();
+        }
+
         async function fetchItems() {
+            const search = document.getElementById('searchInput').value;
+            const type = document.getElementById('typeFilter').value;
+
+            // โชว์ Loading ก่อน
+            const tbody = document.getElementById('itemTableBody');
+            if (search || type) tbody.innerHTML = `<tr><td colspan="6" class="text-center py-10 text-gray-400">กำลังค้นหา "${search}"...</td></tr>`;
+
             try {
-                const res = await fetch('api.php?action=get_items');
+                // ส่ง parameters search & type ไปที่ API
+                const res = await fetch(`api.php?action=get_items&search=${encodeURIComponent(search)}&type=${encodeURIComponent(type)}`);
                 const items = await res.json();
-                const tbody = document.getElementById('itemTableBody');
+
                 tbody.innerHTML = '';
 
                 if (items.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-gray-400">ไม่พบข้อมูลวัสดุ</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-gray-400">ไม่พบข้อมูลที่ค้นหา</td></tr>`;
                     return;
                 }
 
@@ -288,95 +317,53 @@
             } catch (e) { console.error(e); }
         }
 
-        // ฟังก์ชันเปิด Modal ดูรายละเอียด Lot
+        // ... (คงฟังก์ชันเดิม openViewModal, openModal, formItem.submit, deleteItem ไว้ตามเดิมได้เลยครับ) ...
         async function openViewModal(itemid) {
             const modal = document.getElementById('viewModal');
-
-            // เคลียร์ค่าเก่าก่อน
             document.getElementById('view_itemname').innerText = 'กำลังโหลด...';
             document.getElementById('viewTableBody').innerHTML = '<tr><td colspan="7" class="text-center py-4">กำลังโหลดข้อมูล...</td></tr>';
             modal.showModal();
-
             try {
                 const res = await fetch(`api.php?action=get_item_lots&itemid=${itemid}`);
                 const data = await res.json();
-
                 if (data.success) {
                     const item = data.item;
                     const lots = data.lots;
-
-                    // ใส่ข้อมูล Header
                     document.getElementById('view_itemname').innerText = item.itemname;
                     document.getElementById('view_itemid').innerText = item.itemid;
                     document.getElementById('view_type').innerText = item.type;
                     document.getElementById('view_unit').innerText = item.unit;
                     document.getElementById('view_count_lots').innerText = lots.length;
-                    document.getElementById('view_total_remain').innerText = item.qty; // ค่าจาก Cache
-
-                    // สร้างตาราง Lot
+                    document.getElementById('view_total_remain').innerText = item.qty;
                     const tbody = document.getElementById('viewTableBody');
                     tbody.innerHTML = '';
-
                     if (lots.length === 0) {
-                        tbody.innerHTML = `<tr><td colspan="7" class="text-center py-4 text-gray-400">ยังไม่มีประวัติการรับเข้า (No Lot History)</td></tr>`;
+                        tbody.innerHTML = `<tr><td colspan="7" class="text-center py-4 text-gray-400">ยังไม่มีประวัติการรับเข้า</td></tr>`;
                     } else {
                         lots.forEach(lot => {
                             const dateIn = new Date(lot.date_in).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' });
                             const isSoldOut = parseInt(lot.qty_remain) === 0;
-
-                            // สถานะ badge
-                            const statusBadge = isSoldOut
-                                ? `<span class="badge badge-xs bg-gray-200 text-gray-500 border-none font-medium py-2 px-3">หมดแล้ว</span>`
-                                : `<span class="badge badge-xs bg-green-100 text-green-700 border-none font-medium py-2 px-3">ใช้งานอยู่</span>`;
-
-                            // Row Style (ถ้าหมดแล้วให้ตัวจางๆ)
+                            const statusBadge = isSoldOut ? `<span class="badge badge-xs bg-gray-200 text-gray-500 border-none font-medium py-2 px-3">หมดแล้ว</span>` : `<span class="badge badge-xs bg-green-100 text-green-700 border-none font-medium py-2 px-3">ใช้งานอยู่</span>`;
                             const rowClass = isSoldOut ? 'opacity-60 bg-gray-50' : 'hover:bg-blue-50 transition-colors';
-
-                            tbody.innerHTML += `
-                                <tr class="${rowClass}">
-                                    <td class="font-mono text-xs">${lot.lot_id}</td>
-                                    <td>${dateIn}</td>
-                                    <td>${lot.doc_no || '-'}</td>
-                                    <td class="text-right">${parseFloat(lot.lot_price).toFixed(2)}</td>
-                                    <td class="text-right text-blue-600 font-medium">+${lot.qty_initial}</td>
-                                    <td class="text-right font-bold ${isSoldOut ? 'text-gray-400' : 'text-green-600'}">${lot.qty_remain}</td>
-                                    <td class="text-center">${statusBadge}</td>
-                                </tr>
-                            `;
+                            tbody.innerHTML += `<tr class="${rowClass}"><td class="font-mono text-xs">${lot.lot_id}</td><td>${dateIn}</td><td>${lot.doc_no || '-'}</td><td class="text-right">${parseFloat(lot.lot_price).toFixed(2)}</td><td class="text-right text-blue-600 font-medium">+${lot.qty_initial}</td><td class="text-right font-bold ${isSoldOut ? 'text-gray-400' : 'text-green-600'}">${lot.qty_remain}</td><td class="text-center">${statusBadge}</td></tr>`;
                         });
                     }
-                } else {
-                    Swal.fire('Error', 'ไม่สามารถดึงข้อมูลได้', 'error');
-                    modal.close();
-                }
-            } catch (err) {
-                console.error(err);
-                Swal.fire('Error', 'เกิดข้อผิดพลาดในการเชื่อมต่อ', 'error');
-                modal.close();
-            }
+                } else { Swal.fire('Error', 'ไม่สามารถดึงข้อมูลได้', 'error'); modal.close(); }
+            } catch (err) { console.error(err); Swal.fire('Error', 'เกิดข้อผิดพลาดในการเชื่อมต่อ', 'error'); modal.close(); }
         }
 
         function openModal(mode, item = null) {
             document.getElementById('mode').value = mode;
             const modal = document.getElementById('itemModal');
-
             if (mode === 'add') {
-                document.getElementById('modalTitle').innerText = 'เพิ่มวัสดุใหม่';
-                document.getElementById('modalTitleIcon').innerText = '📦';
-                document.getElementById('formItem').reset();
-                document.getElementById('itemid').disabled = false;
-                document.getElementById('addStockSection').classList.remove('hidden');
-                document.getElementById('idHint').classList.remove('hidden');
+                document.getElementById('modalTitle').innerText = 'เพิ่มวัสดุใหม่'; document.getElementById('modalTitleIcon').innerText = '📦';
+                document.getElementById('formItem').reset(); document.getElementById('itemid').disabled = false;
+                document.getElementById('addStockSection').classList.remove('hidden'); document.getElementById('idHint').classList.remove('hidden');
             } else {
-                document.getElementById('modalTitle').innerText = 'แก้ไขข้อมูลวัสดุ';
-                document.getElementById('modalTitleIcon').innerText = '✏️';
-                document.getElementById('itemid').value = item.itemid;
-                document.getElementById('itemid').disabled = true;
-                document.getElementById('itemname').value = item.itemname;
-                document.getElementById('type').value = item.type;
-                document.getElementById('unit').value = item.unit;
-                document.getElementById('addStockSection').classList.add('hidden');
-                document.getElementById('idHint').classList.add('hidden');
+                document.getElementById('modalTitle').innerText = 'แก้ไขข้อมูลวัสดุ'; document.getElementById('modalTitleIcon').innerText = '✏️';
+                document.getElementById('itemid').value = item.itemid; document.getElementById('itemid').disabled = true;
+                document.getElementById('itemname').value = item.itemname; document.getElementById('type').value = item.type; document.getElementById('unit').value = item.unit;
+                document.getElementById('addStockSection').classList.add('hidden'); document.getElementById('idHint').classList.add('hidden');
             }
             modal.showModal();
         }
@@ -384,73 +371,27 @@
         document.getElementById('formItem').addEventListener('submit', async function (e) {
             e.preventDefault();
             const mode = document.getElementById('mode').value;
-            const itemData = {
-                itemid: document.getElementById('itemid').value,
-                itemname: document.getElementById('itemname').value,
-                type: document.getElementById('type').value,
-                unit: document.getElementById('unit').value
-            };
-
+            const itemData = { itemid: document.getElementById('itemid').value, itemname: document.getElementById('itemname').value, type: document.getElementById('type').value, unit: document.getElementById('unit').value };
             let apiUrl = '';
-            if (mode === 'add') {
-                apiUrl = 'api.php?action=add_item';
-                itemData.qty = document.getElementById('init_qty').value;
-                itemData.price = document.getElementById('init_price').value;
-                itemData.doc_no = document.getElementById('init_doc').value;
-            } else {
-                apiUrl = 'api.php?action=update_item';
-            }
-
+            if (mode === 'add') { apiUrl = 'api.php?action=add_item'; itemData.qty = document.getElementById('init_qty').value; itemData.price = document.getElementById('init_price').value; itemData.doc_no = document.getElementById('init_doc').value; }
+            else { apiUrl = 'api.php?action=update_item'; }
             try {
-                const res = await fetch(apiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(itemData)
-                });
+                const res = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(itemData) });
                 const result = await res.json();
-
-                if (result.success) {
-                    Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', timer: 1500, showConfirmButton: false });
-                    document.getElementById('itemModal').close();
-                    fetchItems();
-                } else {
-                    Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: result.error });
-                }
-            } catch (err) {
-                Swal.fire({ icon: 'error', title: 'Error', text: 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้' });
-            }
+                if (result.success) { Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', timer: 1500, showConfirmButton: false }); document.getElementById('itemModal').close(); fetchItems(); }
+                else { Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: result.error }); }
+            } catch (err) { Swal.fire({ icon: 'error', title: 'Error', text: 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้' }); }
         });
 
         async function deleteItem(id) {
-            const result = await Swal.fire({
-                title: 'ยืนยันการลบ?',
-                text: "หากลบแล้วจะไม่สามารถกู้คืนได้ (ต้องไม่มีสต็อกคงเหลือ)",
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonColor: '#d33',
-                cancelButtonColor: '#3085d6',
-                confirmButtonText: 'ลบรายการนี้',
-                cancelButtonText: 'ยกเลิก'
-            });
-
+            const result = await Swal.fire({ title: 'ยืนยันการลบ?', text: "หากลบแล้วจะไม่สามารถกู้คืนได้", icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', cancelButtonColor: '#3085d6', confirmButtonText: 'ลบรายการนี้', cancelButtonText: 'ยกเลิก' });
             if (result.isConfirmed) {
                 try {
-                    const res = await fetch('api.php?action=delete_item', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ itemid: id })
-                    });
+                    const res = await fetch('api.php?action=delete_item', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ itemid: id }) });
                     const resp = await res.json();
-
-                    if (resp.success) {
-                        Swal.fire('ลบสำเร็จ!', 'รายการถูกลบออกจากระบบแล้ว', 'success');
-                        fetchItems();
-                    } else {
-                        Swal.fire('ลบไม่ได้', resp.error, 'error');
-                    }
-                } catch (err) {
-                    console.error(err);
-                }
+                    if (resp.success) { Swal.fire('ลบสำเร็จ!', 'รายการถูกลบออกจากระบบแล้ว', 'success'); fetchItems(); }
+                    else { Swal.fire('ลบไม่ได้', resp.error, 'error'); }
+                } catch (err) { console.error(err); }
             }
         }
     </script>
