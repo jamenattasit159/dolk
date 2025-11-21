@@ -133,7 +133,6 @@
                     <button onclick="printFilteredReport()"
                         class="btn btn-sm bg-white text-[#0d7f4e] border border-[#0d7f4e] hover:bg-[#e8f5e9] join-item gap-2 tooltip tooltip-left"
                         data-tip="พิมพ์รายงานสรุป (ตามที่กรอง)">
-                     
                         พิมพ์สรุป
                     </button>
                 </div>
@@ -365,15 +364,57 @@
             fetchItems();
         }
 
-        // ฟังก์ชันใหม่สำหรับเปิดรายงานสรุปพร้อมตัวกรอง
-        function printFilteredReport() {
+        // --- ฟังก์ชันที่ปรับปรุงใหม่ (Popup เลือกวันที่) ---
+        async function printFilteredReport() {
             const search = document.getElementById('searchInput').value;
             const type = document.getElementById('typeFilter').value;
 
-            // ส่งค่า search และ type ไปยัง URL
-            const url = `print_stock_summary.php?search=${encodeURIComponent(search)}&type=${encodeURIComponent(type)}`;
-            window.open(url, '_blank');
+            // คำนวณวันที่เริ่มต้น (วันที่ 1 ของเดือนปัจจุบัน) และวันที่ปัจจุบัน
+            const now = new Date();
+            const today = now.toISOString().split('T')[0];
+            const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+
+            // แสดง SweetAlert ให้เลือกวันที่
+            const { value: formValues } = await Swal.fire({
+                title: 'กรองช่วงเวลาออกรายงาน',
+                html: `
+                    <div class="text-left space-y-3 px-2">
+                        <div class="form-control">
+                            <label class="label text-sm font-bold text-gray-600 pb-1">ตั้งแต่วันที่ (Start Date)</label>
+                            <input id="swal-start" type="date" class="input input-bordered w-full bg-gray-50" value="${firstDay}">
+                        </div>
+                        <div class="form-control">
+                            <label class="label text-sm font-bold text-gray-600 pb-1">ถึงวันที่ (End Date)</label>
+                            <input id="swal-end" type="date" class="input input-bordered w-full bg-gray-50" value="${today}">
+                        </div>
+                    </div>
+                `,
+                focusConfirm: false,
+                showCancelButton: true,
+                confirmButtonText: '🖨️ พิมพ์รายงาน',
+                cancelButtonText: 'ยกเลิก',
+                confirmButtonColor: '#0d7f4e',
+                cancelButtonColor: '#9ca3af',
+                preConfirm: () => {
+                    return [
+                        document.getElementById('swal-start').value,
+                        document.getElementById('swal-end').value
+                    ]
+                }
+            });
+
+            if (formValues) {
+                const [startDate, endDate] = formValues;
+                if (!startDate || !endDate) {
+                    Swal.fire('กรุณาเลือกวันที่ให้ครบถ้วน', '', 'warning');
+                    return;
+                }
+                // ส่งค่าไปยัง print_stock_summary.php
+                const url = `print_stock_summary.php?search=${encodeURIComponent(search)}&type=${encodeURIComponent(type)}&start_date=${startDate}&end_date=${endDate}`;
+                window.open(url, '_blank');
+            }
         }
+        // ---------------------------------------------------
 
         async function fetchItems() {
             const search = document.getElementById('searchInput').value;
