@@ -126,7 +126,7 @@
                 <li><a onclick="switchTab('withdraw')" class="btn btn-ghost btn-sm font-normal hover:bg-white/20"
                         id="menu-withdraw">📤 เบิกจ่าย</a></li>
                 <li><a onclick="switchTab('report')" class="btn btn-ghost btn-sm font-normal hover:bg-white/20"
-                        id="menu-report">📋 รายงาน</a></li>
+                        id="menu-report">📋 ยกเลิกการเบิก</a></li>
                 <li><a href="print_all_stock.php" target="_blank" class="btn btn-ghost btn-sm font-normal hover:bg-white/20"
                         id="menu-add">📋 พิมพ์รายงานทั้งหมด</a></li>
 
@@ -364,7 +364,7 @@
                             <span class="bg-blue-100 text-blue-600 p-3 rounded-xl">📈</span>
                             รายงานการเบิกจ่าย (FIFO Log)
                         </h2>
-                        <div class="flex gap-2">
+                        <!-- <div class="flex gap-2">
                             <a href="print_all_stock.php" target="_blank" class="btn btn-sm btn-outline gap-2">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
                                     stroke="currentColor">
@@ -373,7 +373,7 @@
                                 </svg>
                                 พิมพ์รายงาน
                             </a>
-                        </div>
+                        </div> -->
                     </div>
 
                     <div class="overflow-x-auto rounded-xl border border-gray-100">

@@ -71,13 +71,14 @@ if ($action == 'get_members') {
 
         // Insert Lot (รองรับทศนิยม)
         $sqlLot = "INSERT INTO stock_lots (itemid, lot_price, qty_initial, qty_remain, doc_no, date_in) 
-                   VALUES (:id, :price, :qty, :qty, :doc, NOW())";
+                   VALUES (:id, :price, :qty, :qty, :doc, :custom_date)";
         $stmtLot = $pdo->prepare($sqlLot);
         $stmtLot->execute([
             ':id' => $data['itemid'],
             ':price' => floatval($data['price']), // แปลงเป็น float
             ':qty' => intval($data['qty']),
-            ':doc' => $data['doc_no']
+            ':doc' => $data['doc_no'],
+            ':custom_date' => $data['custom_date']
         ]);
 
         // Update cache qty
@@ -188,39 +189,75 @@ elseif ($action == 'withdraw' && $_SERVER['REQUEST_METHOD'] == 'POST') {
 // 6. แก้ไขข้อมูลวัสดุ (Update Item Info)
 elseif ($action == 'update_item' && $_SERVER['REQUEST_METHOD'] == 'POST') {
     $data = json_decode(file_get_contents("php://input"), true);
+    $itemid = $data['itemid'];
+    $new_qty = isset($data['qty']) ? intval($data['qty']) : null; // รับค่าจำนวนใหม่
+
     try {
+        $pdo->beginTransaction();
+
+        // 1. อัปเดตข้อมูลทั่วไป (ชื่อ, ประเภท, หน่วย)
         $sql = "UPDATE items SET itemname = :name, type = :type, unit = :unit WHERE itemid = :id";
         $stmt = $pdo->prepare($sql);
         $stmt->execute([
             ':name' => $data['itemname'],
             ':type' => $data['type'],
             ':unit' => $data['unit'],
-            ':id' => $data['itemid']
+            ':id' => $itemid
         ]);
-        echo json_encode(["success" => true, "message" => "แก้ไขข้อมูลเรียบร้อย"]);
-    } catch (PDOException $e) {
-        echo json_encode(["success" => false, "error" => $e->getMessage()]);
-    }
-}
 
-// 7. ลบวัสดุ (Delete Item)
-elseif ($action == 'delete_item' && $_SERVER['REQUEST_METHOD'] == 'POST') {
-    $data = json_decode(file_get_contents("php://input"), true);
-    $itemid = $data['itemid'];
+        // 2. ตรวจสอบและปรับปรุงสต็อก (ถ้ามีการส่งค่า qty มา)
+        if ($new_qty !== null) {
+            // ดึงยอดปัจจุบัน
+            $stmtCheck = $pdo->prepare("SELECT qty FROM items WHERE itemid = ?");
+            $stmtCheck->execute([$itemid]);
+            $current_qty = intval($stmtCheck->fetchColumn());
 
-    try {
-        // ตรวจสอบก่อนว่ามี Transaction หรือ Stock หรือไม่ ถ้ามีห้ามลบ
-        $check = $pdo->prepare("SELECT COUNT(*) FROM stock_lots WHERE itemid = ?");
-        $check->execute([$itemid]);
-        if ($check->fetchColumn() > 0) {
-            throw new Exception("ลบไม่ได้! เนื่องจากมีการรับเข้าสต็อกแล้ว");
+            $diff = $new_qty - $current_qty;
+
+            if ($diff != 0) {
+                if ($diff > 0) {
+                    // กรณีเพิ่มขึ้น: สร้าง Lot ใหม่ (Correction Add)
+                    // ดึงราคาล่าสุดมาใช้ หรือใช้ 0 ถ้าไม่มี
+                    $stmtPrice = $pdo->prepare("SELECT lot_price FROM stock_lots WHERE itemid = ? ORDER BY date_in DESC LIMIT 1");
+                    $stmtPrice->execute([$itemid]);
+                    $last_price = $stmtPrice->fetchColumn() ?: 0;
+
+                    $sqlLot = "INSERT INTO stock_lots (itemid, lot_price, qty_initial, qty_remain, doc_no, date_in) 
+                               VALUES (?, ?, ?, ?, 'แก้ไขยอด', NOW())";
+                    $pdo->prepare($sqlLot)->execute([$itemid, $last_price, $diff, $diff]);
+
+                } else {
+                    // กรณีลดลง: ตัดออกจาก Lot ล่าสุดย้อนกลับไป (LIFO Correction)
+                    // ที่ใช้ LIFO เพราะสมมติว่าเพิ่งคีย์ผิด ก็ควรไปแก้ Lot ที่เพิ่งเข้า
+                    $remove_qty = abs($diff);
+
+                    $stmtLots = $pdo->prepare("SELECT * FROM stock_lots WHERE itemid = ? AND qty_remain > 0 ORDER BY date_in DESC");
+                    $stmtLots->execute([$itemid]);
+                    $lots = $stmtLots->fetchAll(PDO::FETCH_ASSOC);
+
+                    foreach ($lots as $lot) {
+                        if ($remove_qty <= 0)
+                            break;
+
+                        $can_deduct = min($remove_qty, $lot['qty_remain']);
+
+                        $updateLot = $pdo->prepare("UPDATE stock_lots SET qty_remain = qty_remain - ? WHERE lot_id = ?");
+                        $updateLot->execute([$can_deduct, $lot['lot_id']]);
+
+                        $remove_qty -= $can_deduct;
+                    }
+                }
+
+                // อัปเดต Cache ยอดรวมในตาราง items ทันที
+                $pdo->exec("UPDATE items SET qty = (SELECT SUM(qty_remain) FROM stock_lots WHERE itemid = '$itemid') WHERE itemid = '$itemid'");
+            }
         }
 
-        // ถ้าไม่มีข้อมูลสัมพันธ์ ก็ลบได้เลย
-        $stmt = $pdo->prepare("DELETE FROM items WHERE itemid = ?");
-        $stmt->execute([$itemid]);
-        echo json_encode(["success" => true, "message" => "ลบรายการเรียบร้อย"]);
-    } catch (Exception $e) {
+        $pdo->commit();
+        echo json_encode(["success" => true, "message" => "แก้ไขข้อมูลเรียบร้อย"]);
+
+    } catch (PDOException $e) {
+        $pdo->rollBack();
         echo json_encode(["success" => false, "error" => $e->getMessage()]);
     }
 } elseif ($action == 'cancel_withdraw' && $_SERVER['REQUEST_METHOD'] == 'POST') {
@@ -325,6 +362,95 @@ elseif ($action == 'delete_item' && $_SERVER['REQUEST_METHOD'] == 'POST') {
         ]);
     } catch (Exception $e) {
         echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    }
+}// ในไฟล์ api.php หา action == 'delete_item' แล้วแก้เป็นแบบนี้ครับ
+elseif ($action == 'delete_item' && $_SERVER['REQUEST_METHOD'] == 'POST') {
+    $data = json_decode(file_get_contents("php://input"), true);
+    $itemid = $data['itemid'];
+    $confirm_code = isset($data['confirm_code']) ? $data['confirm_code'] : '';
+
+    try {
+        // กรณี 1: พิมพ์รหัสยืนยันถูกต้อง (Force Delete)
+        if ($confirm_code === 'angthongdol') {
+            $pdo->beginTransaction();
+
+            // 1. ลบ Transactions (ประวัติการเบิก) ของสินค้านี้ก่อน 
+            // (เพราะใน SQL ไม่มี ON DELETE CASCADE ที่ตาราง transactions)
+            $stmtDelTrans = $pdo->prepare("DELETE FROM transactions WHERE itemid = ?");
+            $stmtDelTrans->execute([$itemid]);
+
+            // 2. ลบ Item (Stock Lots จะหายไปเองเพราะมี ON DELETE CASCADE ใน DB)
+            $stmtDelItem = $pdo->prepare("DELETE FROM items WHERE itemid = ?");
+            $stmtDelItem->execute([$itemid]);
+
+            $pdo->commit();
+            echo json_encode(["success" => true, "message" => "ลบรายการและประวัติทั้งหมดเรียบร้อย"]);
+        }
+        // กรณี 2: ไม่ได้พิมพ์รหัส หรือพิมพ์ผิด (ใช้ Logic เดิม)
+        else {
+            // ตรวจสอบว่ามีสต็อกหรือไม่
+            $check = $pdo->prepare("SELECT COUNT(*) FROM stock_lots WHERE itemid = ?");
+            $check->execute([$itemid]);
+            if ($check->fetchColumn() > 0) {
+                // แจ้งเตือนให้ผู้ใช้รู้ว่าต้องใส่รหัส
+                throw new Exception("ลบไม่ได้! มีประวัติสต็อก (กรุณาพิมพ์รหัสยืนยัน angthongdol เพื่อลบ)");
+            }
+
+            // ถ้าไม่มีสต็อก ก็ลบตามปกติ
+            $stmt = $pdo->prepare("DELETE FROM items WHERE itemid = ?");
+            $stmt->execute([$itemid]);
+            echo json_encode(["success" => true, "message" => "ลบรายการเรียบร้อย"]);
+        }
+    } catch (Exception $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        echo json_encode(["success" => false, "error" => $e->getMessage()]);
+    }
+}
+// แก้ไขส่วนนี้ใน api.php (หรือเพิ่มใหม่ถ้ายังไม่มี)
+elseif ($action == 'update_lot' && $_SERVER['REQUEST_METHOD'] == 'POST') {
+    $data = json_decode(file_get_contents("php://input"), true);
+
+    $lot_id = $data['lot_id'];
+    $itemid = $data['itemid'];
+    $date_in = $data['date_in'];
+    $doc_no = $data['doc_no'];
+    $lot_price = $data['lot_price'];
+    $qty_initial = $data['qty_initial']; // [รับค่าใหม่]
+    $qty_remain = $data['qty_remain'];
+
+    try {
+        $pdo->beginTransaction();
+
+        // เพิ่ม qty_initial ลงใน SQL Update
+        $sql = "UPDATE stock_lots 
+                SET date_in = :date_in, 
+                    doc_no = :doc_no, 
+                    lot_price = :price,
+                    qty_initial = :qty_init,
+                    qty_remain = :qty_remain 
+                WHERE lot_id = :lid";
+
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([
+            ':date_in' => $date_in . ' 00:00:00',
+            ':doc_no' => $doc_no,
+            ':price' => $lot_price,
+            ':qty_init' => $qty_initial,   // [ผูกค่า]
+            ':qty_remain' => $qty_remain,
+            ':lid' => $lot_id
+        ]);
+
+        // อัปเดต Cache
+        $pdo->exec("UPDATE items SET qty = (SELECT SUM(qty_remain) FROM stock_lots WHERE itemid = '$itemid') WHERE itemid = '$itemid'");
+
+        $pdo->commit();
+        echo json_encode(["success" => true]);
+
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        echo json_encode(["success" => false, "error" => $e->getMessage()]);
     }
 }
 ?>
