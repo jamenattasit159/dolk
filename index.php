@@ -11,6 +11,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap"
         rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
 
     <style>
         body {
@@ -127,8 +129,10 @@
                         id="menu-withdraw">📤 เบิกจ่าย</a></li>
                 <li><a onclick="switchTab('report')" class="btn btn-ghost btn-sm font-normal hover:bg-white/20"
                         id="menu-report">📋 ยกเลิกการเบิก</a></li>
-                <li><a href="print_all_stock.php" target="_blank" class="btn btn-ghost btn-sm font-normal hover:bg-white/20"
-                        id="menu-add">📋 พิมพ์รายงานทั้งหมด</a></li>
+                <li><a href="print_all_stock.php" target="_blank" ...>📋 พิมพ์ PDF</a></li>
+                <li><a href="export_excel.php" target="_blank"
+                        class="btn btn-ghost btn-sm font-normal hover:bg-white/20 text-green-100">📊 ส่งออก Excel</a>
+                </li>
 
                 <li>
                     <a href="item.php"
@@ -178,8 +182,8 @@
                                     <div class="form-control">
                                         <label class="label-text font-bold mb-2 text-gray-700">รหัสวัสดุ <span
                                                 class="text-red-500">*</span></label>
-                                        <input type="text" id="add_itemid" class="input input-bordered bg-white w-full"
-                                            placeholder="เช่น A001" required />
+                                        <select id="add_itemid" class="select select-bordered bg-white w-full"
+                                            placeholder="ระบุรหัสวัสดุ..."></select>
                                     </div>
                                     <div class="form-control">
                                         <label class="label-text font-bold mb-2 text-gray-700">ชื่อรายการ <span
@@ -195,6 +199,20 @@
                                             <option>วัสดุครัวเรือน</option>
                                             <option>อื่นๆ</option>
                                         </select>
+                                    </div>
+                                    <div class="form-control">
+                                        <label class="label-text font-bold mb-2 text-gray-700">สถานที่จัดเก็บ</label>
+                                        <select id="add_storage_location"
+                                            class="select select-bordered bg-white w-full">
+                                            <option value="1">พัฒ 2</option>
+                                            <option value="2">นอกระบบ</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="form-control">
+                                        <label class="label-text font-bold mb-2 text-gray-700">ลักษณะ / สเปค</label>
+                                        <input type="text" id="add_spec" class="input input-bordered bg-white w-full"
+                                            placeholder="เช่น สี, ขนาด, รุ่น..." />
                                     </div>
                                     <div class="form-control">
                                         <label class="label-text font-bold mb-2 text-gray-700">หน่วยนับ</label>
@@ -271,7 +289,7 @@
         <div id="page-withdraw" class="hidden animate-fade-in">
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div class="lg:col-span-2">
-                    <div class="glass-card rounded-2xl overflow-hidden border-t-4 border-red-500">
+                    <div class="glass-card rounded-2xl border-t-4 border-red-500">
                         <div class="p-8">
                             <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-3 mb-8">
                                 <span class="bg-red-100 text-red-600 p-3 rounded-xl">📤</span>
@@ -411,24 +429,84 @@
 
         let currentItems = [];
 
+        // ประกาศตัวแปร global ไว้เก็บ instance ของ Tom Select เพื่อให้ล้างค่าได้เวลาโหลดใหม่
+        let tomSelectMember = null;
+        let tomSelectItem = null; // สำหรับหน้าเบิก
+        let tomSelectAddItem = null; // [เพิ่มใหม่] สำหรับหน้ารับเข้า
+
         async function loadDropdowns() {
             try {
+                // ดึงข้อมูล
                 const [memRes, itemRes] = await Promise.all([
                     fetch('api.php?action=get_members'),
                     fetch('api.php?action=get_items')
                 ]);
                 const members = await memRes.json();
-                currentItems = await itemRes.json();
+                currentItems = await itemRes.json(); // ข้อมูล items จะมี spec และ storage_location แล้วจากการแก้ข้อ 1
 
-                checkLowStock(currentItems); // Trigger Alert
+                checkLowStock(currentItems);
 
+                // --- ส่วนที่ 1: Dropdown หน้าเบิก (เหมือนเดิม) ---
                 const mSelect = document.getElementById('wd_member');
+                if (tomSelectMember) tomSelectMember.destroy();
                 mSelect.innerHTML = '<option value="" disabled selected>-- เลือกผู้เบิก --</option>';
                 members.forEach(m => mSelect.innerHTML += `<option value="${m.eid}">${m.name}</option>`);
 
                 const iSelect = document.getElementById('wd_item');
+                if (tomSelectItem) tomSelectItem.destroy();
                 iSelect.innerHTML = '<option value="" disabled selected>-- เลือกวัสดุ --</option>';
                 currentItems.forEach(i => iSelect.innerHTML += `<option value="${i.itemid}">${i.itemname}</option>`);
+
+                // Init Tom Select หน้าเบิก
+                tomSelectMember = new TomSelect("#wd_member", { create: false, sortField: { field: "text", direction: "asc" }, placeholder: "-- ค้นหาผู้เบิก --" });
+                tomSelectItem = new TomSelect("#wd_item", { create: false, sortField: { field: "text", direction: "asc" }, placeholder: "-- ค้นหาวัสดุ --", onChange: showItemDetails });
+
+                // --- ส่วนที่ 2: Dropdown หน้ารับเข้า (จุดที่ต้องแก้) ---
+                const addItemSelect = document.getElementById('add_itemid');
+                if (tomSelectAddItem) tomSelectAddItem.destroy();
+
+                addItemSelect.innerHTML = '<option value="" selected>-- พิมพ์รหัสใหม่ หรือเลือกของเดิม --</option>';
+                currentItems.forEach(i => {
+                    addItemSelect.innerHTML += `<option value="${i.itemid}">${i.itemid} : ${i.itemname}</option>`;
+                });
+
+                tomSelectAddItem = new TomSelect("#add_itemid", {
+                    create: true,
+                    createOnBlur: true,
+                    persist: false,
+                    sortField: { field: "text", direction: "asc" },
+                    placeholder: "พิมพ์รหัสสินค้า...",
+                    onChange: function (value) {
+                        // ค้นหาข้อมูลสินค้าจาก list ที่โหลดมา
+                        const existingItem = currentItems.find(i => i.itemid === value);
+
+                        if (existingItem) {
+                            // ถ้าเจอของเดิม: ให้เติมข้อมูลลงช่องต่างๆ
+                            document.getElementById('add_itemname').value = existingItem.itemname;
+                            document.getElementById('add_type').value = existingItem.type;
+                            document.getElementById('add_unit').value = existingItem.unit;
+
+                            // *** จุดสำคัญ: เติมค่า Spec และ Storage Location ***
+                            // ต้องเช็คว่า element มีอยู่จริงไหม และข้อมูลมีค่าไหม (ถ้าไม่มีให้ใส่ขีด - หรือค่า Default)
+                            const elSpec = document.getElementById('add_spec');
+                            if (elSpec) {
+                                elSpec.value = existingItem.spec || '';
+                            }
+
+                            const elStorage = document.getElementById('add_storage_location');
+                            if (elStorage) {
+                                elStorage.value = existingItem.storage_location || '1'; // Default พัสดุ 2
+                            }
+
+                        } else {
+                            // ถ้าเป็นรหัสใหม่: ให้เคลียร์ช่องให้ว่าง รอพิมพ์ใหม่
+                            document.getElementById('add_itemname').value = '';
+                            if (document.getElementById('add_spec')) document.getElementById('add_spec').value = '';
+                            // document.getElementById('add_unit').value = ''; // หน่วยนับอาจไม่ต้องลบก็ได้แล้วแต่สะดวก
+                        }
+                    }
+                });
+
             } catch (e) { console.error(e); }
         }
 
@@ -496,6 +574,8 @@
                 body: JSON.stringify({
                     itemid: document.getElementById('add_itemid').value,
                     itemname: itemName,
+                    spec: document.getElementById('add_spec').value,
+                    storage_location: document.getElementById('add_storage_location').value,
                     unit: unit,
                     type: document.getElementById('add_type').value,
                     doc_no: document.getElementById('add_doc').value,

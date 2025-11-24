@@ -58,30 +58,56 @@ if ($action == 'get_members') {
     echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
 } elseif ($action == 'add_item' && $_SERVER['REQUEST_METHOD'] == 'POST') {
     $data = json_decode(file_get_contents("php://input"), true);
+
+    // รับค่า Spec และ Storage (ถ้าไม่มีให้ Default)
+    $spec = isset($data['spec']) ? $data['spec'] : '-';
+    $storage = isset($data['storage_location']) ? $data['storage_location'] : 1;
+
     try {
         $pdo->beginTransaction();
 
-        // เช็ค Master Item
-        $stmtCheck = $pdo->prepare("SELECT COUNT(*) FROM items WHERE itemid = ?");
+        // 1. ตรวจสอบ Master Item
+        $stmtCheck = $pdo->prepare("SELECT * FROM items WHERE itemid = ?");
         $stmtCheck->execute([$data['itemid']]);
-        if ($stmtCheck->fetchColumn() == 0) {
-            $stmtInsertItem = $pdo->prepare("INSERT INTO items (itemid, itemname, unit, type) VALUES (?, ?, ?, ?)");
-            $stmtInsertItem->execute([$data['itemid'], $data['itemname'], $data['unit'], $data['type']]);
+        $existingItem = $stmtCheck->fetch(PDO::FETCH_ASSOC);
+
+        if ($existingItem) {
+            // [กรณีของเดิม] เช็คว่าชื่อตรงกันไหม
+            if (trim($existingItem['itemname']) !== trim($data['itemname'])) {
+                echo json_encode([
+                    "success" => false,
+                    "error" => "ชื่อรายการไม่ตรงกับฐานข้อมูล! รหัส " . $data['itemid'] . " คือ \"" . $existingItem['itemname'] . "\""
+                ]);
+                $pdo->rollBack();
+                exit;
+            }
+            // ถ้าชื่อตรงกัน ก็ข้ามไปเพิ่ม Lot เลย (ไม่แก้ไข Master Data เดิม)
+        } else {
+            // [กรณีของใหม่] Insert ลงตาราง items
+            $stmtInsertItem = $pdo->prepare("INSERT INTO items (itemid, itemname, unit, type, spec, storage_location) VALUES (?, ?, ?, ?, ?, ?)");
+            $stmtInsertItem->execute([
+                $data['itemid'],
+                $data['itemname'],
+                $data['unit'],
+                $data['type'],
+                $spec,
+                $storage
+            ]);
         }
 
-        // Insert Lot (รองรับทศนิยม)
+        // 2. Insert Lot (เพิ่มสต็อก)
         $sqlLot = "INSERT INTO stock_lots (itemid, lot_price, qty_initial, qty_remain, doc_no, date_in) 
                    VALUES (:id, :price, :qty, :qty, :doc, :custom_date)";
         $stmtLot = $pdo->prepare($sqlLot);
         $stmtLot->execute([
             ':id' => $data['itemid'],
-            ':price' => floatval($data['price']), // แปลงเป็น float
+            ':price' => floatval($data['price']),
             ':qty' => intval($data['qty']),
             ':doc' => $data['doc_no'],
             ':custom_date' => $data['custom_date']
         ]);
 
-        // Update cache qty
+        // 3. Update cache qty
         $pdo->exec("UPDATE items SET qty = (SELECT SUM(qty_remain) FROM stock_lots WHERE itemid = '{$data['itemid']}') WHERE itemid = '{$data['itemid']}'");
 
         $pdo->commit();
@@ -90,7 +116,8 @@ if ($action == 'get_members') {
         $pdo->rollBack();
         echo json_encode(["success" => false, "error" => $e->getMessage()]);
     }
-} // 4. บันทึกการเบิก (Withdraw) + ตัดสต็อก (แก้ไขสมบูรณ์)
+
+}// 4. บันทึกการเบิก (Withdraw) + ตัดสต็อก (แก้ไขสมบูรณ์)
 elseif ($action == 'withdraw' && $_SERVER['REQUEST_METHOD'] == 'POST') {
     $data = json_decode(file_get_contents("php://input"), true);
 
