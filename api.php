@@ -23,7 +23,7 @@ if ($action == 'get_members') {
     $type = isset($_GET['type']) ? $_GET['type'] : '';
 
     // เริ่มต้น SQL หลัก
-    $sql = "SELECT i.itemid, i.itemname, i.type, i.unit,
+    $sql = "SELECT i.itemid, i.itemname, i.type, i.unit,i.spec, i.storage_location,
             COALESCE(SUM(s.qty_remain), 0) as qty, 
             (SELECT lot_price FROM stock_lots WHERE itemid = i.itemid AND qty_remain > 0 ORDER BY date_in ASC LIMIT 1) as current_price
             FROM items i
@@ -51,7 +51,7 @@ if ($action == 'get_members') {
     }
 
     // ต่อท้ายด้วย Group By และ Order By
-    $sql .= " GROUP BY i.itemid, i.itemname, i.type ORDER BY i.itemid ASC";
+    $sql .= " GROUP BY i.itemid, i.itemname, i.type, i.spec, i.storage_location ORDER BY i.itemid ASC";
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
